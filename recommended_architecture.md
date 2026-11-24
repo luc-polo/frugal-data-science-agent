@@ -16,7 +16,7 @@ A final gate accepts only one finite number and checks integer, probability, and
 flowchart LR
     T["8 tasks"] --> R{"Router"}
     R -->|calc| P["Prompt builder"]
-    R -->|table or fit| I["Schema profiler<br/>+ raw data dictionary"]
+    R -->|table or fit| I["Schema profiler<br/>"]
     I -->|one data card| P
     P --> L["Qwen2.5-Coder 1.5B<br/>Batched, temperature 0"]
     L --> X["dsh.run_python<br/>Three workers"]

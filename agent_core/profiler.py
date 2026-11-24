@@ -46,6 +46,20 @@ def _detect_decimal_format(values: list[str]) -> str:
     return "not observed"
 
 
+def _find_special_missing_rules(objective: str) -> list[str]:
+    """Find objective sentences that define a numeric value as not recorded."""
+    # Splitting the objective into sentences, cutting at every point (?,.,!)
+    sentences = re.split(r"(?<=[.!?])\s+", objective)
+
+    # Identify special Nan placeholder rules using regular-expression matching
+    return [
+        sentence.strip()
+        for sentence in sentences
+        if "not recorded" in sentence.lower()
+        and re.search(r"(?<!\w)[+-]?\d+(?:\.\d+)?(?!\w)", sentence)
+    ]
+
+
 def build_data_card(objective: str, file_paths: list[str]) -> str:
     """Return a compact, human-readable description of a task's CSV files.
 
@@ -56,13 +70,8 @@ def build_data_card(objective: str, file_paths: list[str]) -> str:
     3. Detect each file's separator and decimal convention.
     4. Report its dimensions and physical column names.
     5. Include its first two or three raw data rows.
-    6. Identify the missing-value placeholders used in the file (such as ?, -, n/a, or empty cells)
+    6. Identify observed placeholders and numeric not-recorded rules from the objective.
     7. Return all this information as one compact text card for the LLM.
-
-    ``objective`` is included in the interface because later versions may use
-    explicit parsing instructions from it. The current profiler only reports
-    what it observes in the files; the prompt builder sends the objective to
-    the LLM itself.
     """
     # Converts every path string into a Path object.
     paths = [Path(path) for path in file_paths]
@@ -75,6 +84,7 @@ def build_data_card(objective: str, file_paths: list[str]) -> str:
 
     # Start constructing the card
     sections = ["DATA CARD"]
+    special_missing_rules = _find_special_missing_rules(objective)
 
     # Iterate over all the data files in file_paths
     for path in data_paths:
@@ -122,6 +132,16 @@ def build_data_card(objective: str, file_paths: list[str]) -> str:
                 *(sample_rows or ["(no data rows)"]),
             ]
         )
+
+    if special_missing_rules:
+        sections.extend(
+            [
+                "",
+                "Special missing-value rules from objective:",
+                *special_missing_rules,
+            ]
+        )
+
     # Add the dictionary to the card
     if dictionary_path is not None:
         dictionary = dictionary_path.read_text(encoding="utf-8-sig").rstrip("\n")
