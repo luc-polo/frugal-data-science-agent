@@ -19,9 +19,8 @@ flowchart LR
     R -->|table or fit| I["Schema profiler<br/>"]
     I -->|one data card| P
     P --> L["Qwen2.5-Coder 1.5B<br/>Batched, temperature 0"]
-    L --> X["dsh.run_python<br/>Three workers"]
-    X --> U["SymPy / NumPy<br/>pandas / scikit-learn"]
-    U --> V{"Scalar validator"}
+    L --> X["dsh.run_python<br/>(pandas, scikit-learn, ...)<br/>Maximum 3 workers"]
+    X --> V{"Scalar validator"}
     V -->|valid| O["id + numeric answer"]
     V -->|one repair| P
     V -->|deadline| F["Numeric fallback"]
