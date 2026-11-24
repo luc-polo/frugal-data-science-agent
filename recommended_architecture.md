@@ -4,7 +4,9 @@ Use a compact hybrid architecture in which the LLM interprets each objective and
 
 Load `Qwen2.5-Coder-1.5B-Instruct` once. 
 -A rule-based router uses file presence and regression phrases to select `calc`, `table`, or `fit`. 
--For file tasks, a deterministic schema profiler passes `data_dictionary.csv` to the LLM unchanged and supplements it with one compact data card containing each file's shape, separator, decimal format, column names, observed missing-value token, and the first two or three raw sample rows. These samples help distinguish categorical, numeric, date-like, and unit-bearing columns. Missing-value counts and row positions are not sent to the LLM; generated pandas code locates and handles missing values according to the objective. The profiler does not perform semantic column selection: the LLM uses the objective and raw data dictionary to determine which physical columns are relevant.
+-For tasks attaching files, a deterministic schema profiler creates a data card (a presentation of all attached files structure and content). 
+This data card contains the raw `data_dictionary.csv`, each file's shape, separator, decimal format, column names, observed missing-value token, and the first two or three raw sample rows.
+Missing-value counts and row positions are not sent to the LLM; generated pandas code locates and handles missing values according to the objective. The profiler does not perform semantic column selection: the LLM uses the objective and raw data dictionary to determine which physical columns are relevant.
 
 Batch all eight objectives and data cards into one GPU generation pass at temperature zero. Request only a short Python program producing one scalar. Execute it through `dsh.run_python`, with SymPy/NumPy for calculations, pandas for cleaning, filtering and joins, and scikit-learn for OLS or unregularized logistic regression. The LLM therefore interprets language; trusted libraries perform the arithmetic.
 
