@@ -1,0 +1,27 @@
+# Recommended architecture
+
+Use a compact hybrid architecture in which the LLM interprets each objective and deterministic tools perform the computation.
+
+Load `Qwen2.5-Coder-1.5B-Instruct` once. 
+-A rule-based router uses file presence and regression phrases to select `calc`, `table`, or `fit`. 
+-For file tasks, a deterministic schema profiler passes `data_dictionary.csv` to the LLM unchanged and supplements it with one compact data card containing each file's shape, separator, decimal format, column names, observed missing-value token, and the first two or three raw sample rows. These samples help distinguish categorical, numeric, date-like, and unit-bearing columns. Missing-value counts and row positions are not sent to the LLM; generated pandas code locates and handles missing values according to the objective. The profiler does not perform semantic column selection: the LLM uses the objective and raw data dictionary to determine which physical columns are relevant.
+
+Batch all eight objectives and data cards into one GPU generation pass at temperature zero. Request only a short Python program producing one scalar. Execute it through `dsh.run_python`, with SymPy/NumPy for calculations, pandas for cleaning, filtering and joins, and scikit-learn for OLS or unregularized logistic regression. The LLM therefore interprets language; trusted libraries perform the arithmetic.
+
+A final gate accepts only one finite number and checks integer, probability, and rounding requirements. Syntax, runtime, or malformed-output failures receive one batched repair using the traceback and schema. Run execution across three CPU workers, isolate every task, maintain a deadline margin, and always return a numeric fallback. This five-module design is small, explainable, fast, and more general than templates or fine-tuning only 180 examples.
+
+```mermaid
+flowchart LR
+    T["8 tasks"] --> R{"Router"}
+    R -->|calc| P["Prompt builder"]
+    R -->|table or fit| I["Schema profiler<br/>+ raw data dictionary"]
+    I -->|one data card| P
+    P --> L["Qwen2.5-Coder 1.5B<br/>Batched, temperature 0"]
+    L --> X["dsh.run_python<br/>Three workers"]
+    X --> U["SymPy / NumPy<br/>pandas / scikit-learn"]
+    U --> V{"Scalar validator"}
+    V -->|valid| O["id + numeric answer"]
+    V -->|one repair| P
+    V -->|deadline| F["Numeric fallback"]
+    F --> O
+```

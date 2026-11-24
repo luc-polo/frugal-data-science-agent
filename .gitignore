@@ -1,0 +1,101 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+
+# Coverage and test reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+pytest.xml
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging and build output
+build/
+dist/
+*.egg-info/
+*.egg
+wheels/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Model weights and serialized objects
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.h5
+*.hdf5
+*.joblib
+*.pkl
+*.pickle
+
+# Large generated data and array formats
+*.npy
+*.npz
+*.parquet
+*.feather
+*.arrow
+
+# Machine-learning caches and experiment output
+.cache/
+.hf_cache/
+huggingface/
+checkpoints/
+outputs/
+runs/
+artifacts/
+wandb/
+mlruns/
+lightning_logs/
+tensorboard/
+
+# Local evaluation output
+run.json
+run-*.json
+run_*.json
+*.log
+
+# Temporary and backup files
+*.tmp
+*.temp
+*.bak
+*.orig
+*.swp
+*.swo
+*~
+
+# Editors and IDEs
+.vscode/
+.idea/
+
+# Operating-system metadata
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini

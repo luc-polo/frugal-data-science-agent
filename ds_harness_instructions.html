@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>MLP Project — DS-Harness</title><style>body{font-family:system-ui,sans-serif;line-height:1.65;color:#17212b;max-width:960px;margin:40px auto;padding:0 24px}h2{margin-top:2.5rem;border-bottom:1px solid #cbd5e1}h3{font-size:1.5rem}h4{font-size:1.15rem;margin-top:2rem}table{border-collapse:collapse;width:100%;margin:1.5rem 0}th,td{border:1px solid #cbd5e1;padding:10px;text-align:left;vertical-align:top}th{background:#f1f5f9}pre{padding:18px;background:#f1f5f9;border-radius:6px;overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere}code{font-family:ui-monospace,monospace;font-size:.9em}blockquote{border-left:3px solid #94a3b8;margin:1rem 0;padding:.1rem 1.2rem;color:#334155}a{color:#1d4ed8}dt{font-weight:600;margin-top:.75rem}dd{margin-left:0}li{margin:.3rem 0}footer{margin-top:3rem;font-size:.85rem;color:#64748b}</style></head>
+<body><main><h1>MLP Project — DS-Harness</h1>
+<section id="evaluation"><div><h2>How you are scored</h2></div><dl><div><dt>Ranked by</dt><dd>Score (/100)  · higher is better </dd></div><div><dt>Each deploy</dt><dd>1  validation run, then 1  scored run</dd></div><div><dt>Agent limits</dt><dd><ul><li>Memory 3 GiB </li><li>CPU 3 cores </li><li>GPU memory 24 GiB </li><li>Time per step 6 s </li></ul></dd></div></dl></section>
+<section id="description"><h2>Description</h2><div><div><h3>DS-Harness: build an AI system around a frugal LLM</h3>
+<p>Each task is an <strong>objective</strong> in English, sometimes with CSV files, and its answer is <strong>one
+number</strong>: a computation stated in the text, a statistic over messy tables, or a regression
+fitted on a training file. A language model of 1.5 billion parameters, asked directly, gets the
+arithmetic wrong, never sees the data and drifts from the format. You build the <strong>system</strong> around
+it:</p>
+<ul>
+<li>how the objective and its files are read;</li>
+<li>how the system decides what kind of task it faces;</li>
+<li>what reaches the model;</li>
+<li>which tools exist and how the model calls them;</li>
+<li>how the answer is parsed and checked;</li>
+<li>how the 40 seconds of each call are spent.</li>
+</ul>
+<p><strong>An efficient system matters more than the model.</strong> Measured on <code>dev.json</code> with the same 1B
+model: asked directly with a well-parsed answer, <strong>10</strong>; with a calculator in a loop, <strong>15</strong>;
+with a system that reads the files itself, shows the model a clean view of them and runs the tools
+it writes above <strong>60</strong>.</p>
+<h4>The tasks</h4>
+
+<table><thead><tr><th>Family</th><th>What</th><th>Share of the private set</th></tr></thead><tbody><tr><td>No files</td><td>arithmetic, statistics of numbers given in the text, percentages, growth, logarithms and roots, dates, integers, word problems, probability</td><td>45 tasks</td></tr><tr><td>Tables</td><td>a statistic, a filter, a group ranking, a join, a derived column — over one or two CSV files with a <code>data_dictionary.csv</code></td><td>50 tasks</td></tr><tr><td>Fits</td><td>a linear or logistic regression on <code>train.csv</code>: a prediction for a row of <code>test.csv</code>, a coefficient, R², a count</td><td>25 tasks</td></tr></tbody></table>
+<p>The agent receives only the objective and the file paths: no type, no format. Five tasks from
+<code>dev.json</code>:</p>
+<p><strong>d_027 · no files.</strong> The numbers are in the text, and so is a sentence that changes nothing.</p>
+<blockquote>
+<p>The delivery delays of 11 orders were 64.62, 95.29, 30.42, 28.19, 67.74, 64.1, 85.05, 93.81,
+21.34, 26.32, 83.87 (hours). The measurements were checked twice. What is the mean? Round to 2
+decimals.</p>
+</blockquote>
+<p>Answer <code>60.07</code>.</p>
+<p><strong>d_006 · one table.</strong> Headers are short codes; the objective names columns by their dictionary
+description (&quot;amount billed&quot; is <code>amt_k</code>).</p>
+<blockquote>
+<p>admissions.csv lists hospital stays; data_dictionary.csv describes its columns. Compute the total
+amount billed for each department. What is the largest of these values (in thousand euros)?
+Report it with 2 decimals.</p>
+</blockquote>
+<pre><code>stay_no,dpt,admit,n_days,pat_age,amt_k,PX,readm30
+1001,PED,2021-12-07,2,3,3.61,2,Y
+1002,GER,2023-01-10,1,74,2.87,1,N
+</code></pre>
+<p>Answer <code>30.73</code>.</p>
+<p><strong>d_015 · a derived column.</strong> A missing-value token, duplicated rows, and a fact that plays no part.</p>
+<blockquote>
+<p>The bank was founded in 1902. Consider the debt-to-income ratio (the amount borrowed divided by
+the annual income). What is its smallest value over the loans? Missing values are written &#x27;?&#x27;.
+Ignore values that are missing or not recorded. Some loans appear twice in portfolio.csv: count
+each loan once. Report it with 2 decimals.</p>
+</blockquote>
+<p>Answer <code>0.1</code>.</p>
+<p><strong>d_005 · a join.</strong> Two files, <code>;</code> and decimal commas, <code>-</code> for missing, duplicates, and keys that
+only match once a prefix is stripped.</p>
+<blockquote>
+<p>What is the median occupancy of the readings that belong to a site with a floor surface of at
+least 3583 square metres (in people)? energy_use.csv uses &#x27;;&#x27; to separate columns and a comma as
+the decimal mark. Missing values are written &#x27;-&#x27;. […] energy_use.csv contains duplicated rows
+(same identifier); keep one copy of each. In energy_use.csv the site key carries the prefix
+&#x27;SITE-&#x27;; buildings.csv does not. […] Round your answer to 2 decimal places.</p>
+</blockquote>
+<pre><code>energy_use.csv                              buildings.csv
+rid;LOC;d_read;kwh;tc;ppl;rate_plan         site;m2;city
+17;SITE-S02;2023-03-10;419,8;7,9;129;offpeak S03;3963;Nantes
+6;SITE-S01;2023-11-15;258,8;8,3;-;peak       S01;3583;Bordeaux
+</code></pre>
+<p>Answer <code>62.5</code>.</p>
+<p><strong>d_002 · a fit.</strong> A row filter on the training set, and a column to leave out because it is
+recorded after the outcome.</p>
+<blockquote>
+<p>Fit a logistic regression without regularisation, with an intercept, of default (1) versus repaid
+(0) on the income, loan amount and loan duration, using the loans of train.csv with a year granted
+of 2019 or earlier. Do not use the column described as &quot;File passed to a collection agency (1/0)&quot;:
+it is recorded after the outcome. What is the predicted probability of default for the loan 8340
+of test.csv? Round to 3 decimals.</p>
+</blockquote>
+<p>Answer <code>0.909</code>.</p>
+<p>An answer counts when it is within 1.5 units of the last decimal asked for (exact for integers).
+The private set (120 tasks) has other draws, and table types that <code>dev.json</code> does not have.</p>
+<h4>Start here</h4>
+<ol>
+<li><strong>Dataset.</strong> Download <code>dev.json</code> from this challenge: 180 tasks with their files, answers and
+types.</li>
+<li><strong>Notebook.</strong> <a href="https://colab.research.google.com/github/racousin/data_science_practice/blob/main/website/public/modules/ms2a-machine-learning-practice/challenges/mlp-project-ds-harness.ipynb">Open the starter notebook in Colab</a>
+on a T4 GPU: the data, the first solution in detail, a tool and a loop, the directions.</li>
+</ol>
+<h4>What your agent receives</h4>
+<p><code>Agent.solve(tasks)</code> gets a list of 8 tasks. A task is:</p>
+<pre><code>{&quot;id&quot;: &quot;p_042&quot;,
+ &quot;objective&quot;: &quot;Fit a logistic regression without regularisation ... What is the predicted probability of default for the loan 8812 of test.csv? Round to 3 decimals.&quot;,
+ &quot;files&quot;: [&quot;/var/run/agents/data/p_042/train.csv&quot;, &quot;/var/run/agents/data/p_042/test.csv&quot;,
+           &quot;/var/run/agents/data/p_042/data_dictionary.csv&quot;]}
+</code></pre>
+<ul>
+<li><code>objective</code> is the whole statement: what to compute, the rounding, and how to read the
+files (separator, decimal mark, missing values, units, duplicated rows, columns to leave out).</li>
+<li><code>files</code> lists absolute paths, and is empty when the task has none. The files of a call exist
+during that call only. Reading them, and deciding what reaches the model, is your system&#x27;s job.</li>
+<li>A task with files always has a <code>data_dictionary.csv</code> (<code>file, column, description, unit</code>).
+Headers are short codes that change from task to task; the objective names a column by its
+<strong>description</strong>.</li>
+</ul>
+<p>Nothing else is sent: not the task type, not the expected format. Your system has to recognise
+the kind of task from the objective.</p>
+<h4>What your agent returns</h4>
+<pre><code>[{&quot;id&quot;: &quot;p_042&quot;, &quot;answer&quot;: 0.437}, ...]
+</code></pre>
+<p>One <code>{&quot;id&quot;, &quot;answer&quot;}</code> per task. <strong>Every answer is one number</strong>: an <code>int</code> or a <code>float</code>, or a
+string holding a plain decimal number (<code>&quot;41.07&quot;</code>, <code>&quot;-3&quot;</code>, <code>&quot;1e-3&quot;</code>). <code>&quot;1,200&quot;</code>, <code>&quot;12 kg&quot;</code>, <code>None</code>
+or a list are format errors (the task scores 0). A missing task scores 0.</p>
+<h4>Score</h4>
+<ul>
+<li>The objective states the rounding: <em>n decimals</em> gives a tolerance of <code>1.5 × 10⁻ⁿ</code>;
+<em>an integer</em> gives <code>1e-6</code>. Inside the tolerance the task scores 1, otherwise 0. An exact
+unrounded value is always inside the tolerance.</li>
+<li><strong>Score = 100 × the mean over all tasks.</strong> No levels, no weights.</li>
+<li>The leaderboard also shows the mean on tasks without files (<em>No files</em>), with tables
+(<em>Tables</em>) and with a regression (<em>Fits</em>).</li>
+</ul>
+<h4>Timing</h4>
+
+<table><thead><tr><th>Step</th><th>Limit</th></tr></thead><tbody><tr><td><code>Agent()</code> loads the model</td><td>60 s</td></tr><tr><td>each <code>solve()</code> call (8 tasks, types mixed)</td><td>40 s</td></tr><tr><td>the scored run</td><td>15 calls: 120 tasks</td></tr><tr><td>the test run before it</td><td>2 calls of <code>dev.json</code> tasks</td></tr></tbody></table>
+<p><strong>A call that raises or takes longer than 40 s ends the run, and the deployment fails.</strong> Catch
+errors per task, keep a margin, and answer a number anyway. There is no other time rule.</p>
+<h4>The machine</h4>
+<p>One RTX 4090 for your job, 3 CPUs, 3 GiB of RAM (over it the container is killed), no network,
+a read-only root filesystem with a 128 MB <code>/tmp</code>. Packages: torch, transformers, accelerate,
+numpy, pandas, scipy, scikit-learn, sympy. Models (mounted read-only, nothing else loads): <code>Qwen/Qwen2.5-0.5B-Instruct</code>,
+<code>Qwen/Qwen2.5-1.5B-Instruct</code>, <code>Qwen/Qwen2.5-Coder-1.5B-Instruct</code>,
+<code>deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B</code>, <code>Qwen/Qwen3-1.7B</code>.</p>
+<h4>Uploads</h4>
+<p><code>agent.py</code> and the modules it imports, up to 10 files, PyTorch runtime. Each upload is scanned
+before it runs:</p>
+<ul>
+<li><strong>only <code>agent.py</code> may define <code>class Agent</code></strong>: in a module you import (e.g. a stage you reuse),
+give the class another name;</li>
+<li><strong>no <code>exec(...)</code></strong> in your files (the scan, bandit, refuses it): run generated code with
+<code>dsh.run_python</code>, which executes it in a subprocess;</li>
+<li><code>from_pretrained</code> needs a pinned <code>revision=</code> (<code>dsh.load_llm</code> does it).</li>
+</ul></div></div></section>
+<section id="agent-template"><div><h2>Agent template</h2><p>Your <code>agent.py</code> implements this interface; the environment calls it during evaluation.</p></div><div><div>agent.py <div></div></div><pre><code>&quot;&quot;&quot;DS-Harness agent (challenge 194). Upload this file as agent.py, with the modules it
+imports (e.g. dsh.py from github.com/racousin/ds-harness), and choose the PyTorch runtime.
+
+Agent() has 60 s to load its model (one of the five models the platform mounts:
+Qwen2.5-0.5B-Instruct, Qwen2.5-1.5B-Instruct, Qwen2.5-Coder-1.5B-Instruct,
+DeepSeek-R1-Distill-Qwen-1.5B, Qwen3-1.7B). solve() is then called 15 times with 8
+tasks; each call must return within 40 s. A call that raises or takes longer ends the
+run and the deployment fails: catch errors per task and answer a number anyway.
+Formats: schema.md.
+&quot;&quot;&quot;
+
+class Agent:
+    def __init__(self):
+        # Load your model here.
+        pass
+
+    def solve(self, tasks):
+        # tasks: list of {&quot;id&quot;, &quot;objective&quot;, &quot;files&quot;: [paths]}.
+        # Return one {&quot;id&quot;, &quot;answer&quot;: &lt;a number&gt;} per task.
+        return [{&quot;id&quot;: t[&quot;id&quot;], &quot;answer&quot;: 0} for t in tasks]
+</code></pre></div><div><p>Runs on one of — pick one by name from the SDK: <code>client.submit(…, runtime=&quot;sklearn&quot;)</code></p><ul><li><div><div>Python 3.12 · PyTorch 2.12.0<code>torch</code> </div></div></li><li><div><div>Python 3.12 · TensorFlow 2.21.0<code>tensorflow</code> </div></div></li><li><div><div>Python 3.12 · JAX 0.10.1<code>jax</code> </div></div></li><li><div><div>Python 3.12<code>python</code> </div></div></li><li><div><div>Python 3.12 · scikit-learn 1.8.0 · XGBoost 3.2.0 · LightGBM 4.6.0<code>sklearn</code>default  </div></div></li><li><div><div>Python 3.12 · PyTorch 2.12.0 · pystk2-gymnasium 0.10.1 · Stable-Baselines3 2.9.0 · SB3-Contrib 2.9.0<code>torch-kart</code> </div></div></li></ul></div></section>
+</main><footer>Source: <a href="https://ml-arena.com/challenges/mlp-project-ds-harness">ML-Arena — MLP Project — DS-Harness</a> · 20 November 2026</footer></body></html>
