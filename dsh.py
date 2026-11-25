@@ -117,20 +117,26 @@ def cached_revision(model_id: str) -> str | None:
 
 
 def load_llm(model_id: str = DEFAULT_MODEL, device: str | None = None) -> LLM:
-    """Load a chat model: fp16 on a GPU, straight onto the device (the agent container has
-    3 GiB of RAM, so the weights must not pass through it in full)."""
+    """Load a chat model directly onto CUDA, MPS, or CPU, in that order by default."""
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     if model_id not in ALLOWED_MODELS:
         raise ValueError(f"{model_id} is not mounted on the platform; choose one of {ALLOWED_MODELS}")
-    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    if not device:
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
+
     revision = cached_revision(model_id)
     tok = AutoTokenizer.from_pretrained(model_id, revision=revision)
     tok.padding_side = "left"  # decoder-only models continue after the last token: pad on the left
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    dtype = torch.float16 if device == "cuda" else torch.float32
+    dtype = torch.float16 if device in ("cuda", "mps") else torch.float32
     model = AutoModelForCausalLM.from_pretrained(model_id, revision=revision, dtype=dtype,
                                                  device_map=device)
     model.eval()

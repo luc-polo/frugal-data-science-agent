@@ -10,7 +10,9 @@ Missing-value counts and row positions are not sent to the LLM; generated pandas
 
 Batch all eight objectives and data cards into one GPU generation pass at temperature zero. Request only a short Python program producing one scalar. Execute it through `dsh.run_python`, with SymPy/NumPy for calculations, pandas for cleaning, filtering and joins, and scikit-learn for OLS or unregularized logistic regression. The LLM therefore interprets language; trusted libraries perform the arithmetic.
 
-A final gate accepts only one finite number and checks integer, probability, and rounding requirements. Syntax, runtime, or malformed-output failures receive one batched repair using the traceback and schema. Run execution across three CPU workers, isolate every task, maintain a deadline margin, and always return a numeric fallback. This five-module design is small, explainable, fast, and more general than templates or fine-tuning only 180 examples.
+A final gate accepts only one finite number. *(Planned validation will also check integer, probability, and rounding requirements.)* Run execution across three CPU workers, isolate every task, maintain a deadline margin, and always return a numeric fallback. This five-module design is small, explainable, fast, and more general than templates or fine-tuning only 180 examples.
+
+*(A planned repair pass will use the traceback and schema to retry syntax, runtime, or malformed-output failures in one batch.)*
 
 ```mermaid
 flowchart LR
@@ -22,7 +24,7 @@ flowchart LR
     L --> X["dsh.run_python<br/>(pandas, scikit-learn, ...)<br/>Maximum 3 workers"]
     X --> V{"Scalar validator"}
     V -->|valid| O["id + numeric answer"]
-    V -->|one repair| P
+    V -.->|"one repair (planned)"| P
     V -->|deadline| F["Numeric fallback"]
     F --> O
 ```
