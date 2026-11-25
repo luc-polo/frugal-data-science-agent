@@ -14,15 +14,16 @@ from sklearn.model_selection import train_test_split
 from agent import Agent
 from dsh import to_number
 
-
-TASKS_PER_BATCH = 8
 SPLIT_SEED = 42
+#Fixed parameters never touched
+TASKS_PER_BATCH = 8
 MODEL_LOAD_LIMIT_S = 60.0
 SOLVE_LIMIT_S = 40.0
 DEV_PATH = Path(__file__).with_name("dev.json")
 
 
 def _family(task: dict) -> str:
+    """takes a task detailed label from dev.json, like "table.join", and returns the broad category, "table"""
     return task["type"].split(".", 1)[0]
 
 
@@ -63,18 +64,21 @@ def _print_time(stage: str, seconds: float, limit: float) -> None:
     print(f"{stage}: {seconds:.2f} s{status}")
 
 
-def evaluate(tasks: list[dict]) -> None:
+def evaluate(tasks: list[dict], model_log: Path | None = None) -> None:
     """Run the selected tasks and report accuracy and wall-clock time."""
     if not tasks:
         raise ValueError("No tasks to evaluate")
+    if model_log is not None and model_log.exists():
+        raise FileExistsError(f"Model log already exists: {model_log}")
 
     started = perf_counter()
-    agent = Agent()
+    agent = Agent(log_model_io=model_log is not None)
     _print_time("Model load", perf_counter() - started, MODEL_LOAD_LIMIT_S)
 
     correct = Counter()
     totals = Counter()
     failed_ids = []
+    log_records = []
     for start in range(0, len(tasks), TASKS_PER_BATCH):
         batch = tasks[start:start + TASKS_PER_BATCH]
         with TemporaryDirectory(prefix="dsh-dev-") as temp_dir:
@@ -82,6 +86,9 @@ def evaluate(tasks: list[dict]) -> None:
             started = perf_counter()
             replies = agent.solve(inputs)
             elapsed = perf_counter() - started
+
+        if model_log is not None:
+            log_records.extend(agent.last_batch_log)
 
         batch_number = start // TASKS_PER_BATCH + 1
         _print_time(f"Batch {batch_number} ({len(batch)} tasks)", elapsed, SOLVE_LIMIT_S)
@@ -100,15 +107,21 @@ def evaluate(tasks: list[dict]) -> None:
         print(f"{group}: {correct[group]}/{totals[group]} ({correct[group] / totals[group]:.1%})")
     print(f"\nFailed task IDs: {', '.join(failed_ids) or 'none'}")
 
+    if model_log is not None:
+        with model_log.open("x", encoding="utf-8") as file:
+            json.dump(log_records, file, ensure_ascii=False, indent=2)
+            file.write("\n")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--split", choices=("tuning", "holdout"), default="tuning")
+    parser.add_argument("--model-log", type=Path, help="Save prompts and replies to one JSON file")
     args = parser.parse_args()
     tuning, holdout = _split_tasks(json.loads(DEV_PATH.read_text(encoding="utf-8")))
     tasks = tuning if args.split == "tuning" else holdout
     print(f"Evaluating {len(tasks)} {args.split} tasks", flush=True)
-    evaluate(tasks)
+    evaluate(tasks, model_log=args.model_log)
 
 
 if __name__ == "__main__":

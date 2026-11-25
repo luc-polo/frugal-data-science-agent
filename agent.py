@@ -56,12 +56,15 @@ def _execute_answer(reply: str, file_paths: list[str], clock: Clock) -> float:
 class Agent:
     """Coordinate model generation and the deterministic pipeline."""
 
-    def __init__(self):
+    def __init__(self, log_model_io: bool = False):
+        self.log_model_io = log_model_io
+        self.last_batch_log: list[dict] = []
         self.llm = load_llm(MODEL_ID)
 
     def solve(self, tasks: list[dict]) -> list[dict]:
         """Orchestrates all the pipeline to return one numeric answer per task in the original order."""
         clock = Clock(seconds=40.0, margin=SAFETY_MARGIN_S)
+        self.last_batch_log = []
 
         # Build the dictionnary that will store future answer to the 8 tasks of this batch
         answers = [{"id": task["id"], "answer": 0.0} for task in tasks]
@@ -93,12 +96,23 @@ class Agent:
         generation_time = clock.left() - EXECUTION_RESERVE_S
         if not conversations or generation_time <= 0:
             return answers
+
+        # If activated save the generated llm prompt to logs in order to improve/debug the system
+        if self.log_model_io:
+            self.last_batch_log = [
+                {"id": tasks[index]["id"], "messages": messages, "reply": None}
+                for index, messages in zip(task_indices, conversations)
+            ]
         
         # Lunch LLM call for the 8 tasks in parallel 
         try:
             replies = self.generate_programs(conversations, max_time=generation_time)
         except Exception:
             return answers
+        
+        # If activated save the generated python code to logs in order to improve/debug the system
+        for record, reply in zip(self.last_batch_log, replies):
+            record["reply"] = reply
 
         if clock.left() <= 0:
             return answers
