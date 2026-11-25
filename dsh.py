@@ -255,6 +255,11 @@ class ExecResult:
 
 _RUNNER = r"""
 import json, sys, traceback
+mem_limit_mb = int(sys.argv.pop(1))
+if sys.platform.startswith("linux"):
+    import resource
+    memory_limit = mem_limit_mb << 20
+    resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
 ns = {"__name__": "__main__"}
 try:
     exec(compile(open("solution.py").read(), "solution.py", "exec"), ns)
@@ -295,14 +300,9 @@ def run_python(code: str, files: list[str] = (), timeout_s: float = 10.0,
         env = dict(os.environ, OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1",
                    MPLBACKEND="Agg", PYTHONDONTWRITEBYTECODE="1")
 
-        def limit():
-            if sys.platform.startswith("linux"):
-                import resource
-                resource.setrlimit(resource.RLIMIT_AS, (mem_limit_mb << 20, mem_limit_mb << 20))
-
-        p = subprocess.Popen([sys.executable, "_runner.py"], cwd=d, env=env, text=True,
+        p = subprocess.Popen([sys.executable, "_runner.py", str(mem_limit_mb)], cwd=d, env=env, text=True,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                             start_new_session=True, preexec_fn=limit)
+                             start_new_session=True)
         try:
             out, err = p.communicate(timeout=timeout_s)
         except subprocess.TimeoutExpired:

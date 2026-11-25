@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from agent_core.config import PROGRAM_TIMEOUT_S
 from dsh import ExecResult, run_python
 
 
@@ -10,6 +11,7 @@ def _strip_code_fence(reply: str) -> str:
     code = reply.strip()
     lines = code.splitlines()
 
+    # if the code has mtwo lines or less it can not have opening Markdown fence on the first line and a closing fence on the last line
     if len(lines) < 2:
         return code
 
@@ -24,7 +26,7 @@ def _strip_code_fence(reply: str) -> str:
 def execute_program(
     reply: str,
     file_paths: list[str],
-    timeout_s: float = 8.0,
+    timeout_s: float = PROGRAM_TIMEOUT_S,
 ) -> ExecResult:
     """Execute one generated program beside its task files."""
     code = _strip_code_fence(reply)
