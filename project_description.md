@@ -2,6 +2,12 @@
 
 The project is organised as a pipeline. `agent.py` coordinates `agent_core`; `dsh.py` provides model loading and Python execution. This document grows as each block is implemented.
 
+## Block 0 — Orchestration
+
+`Agent.solve(tasks)` coordinates the blocks below for each batch of up to eight tasks. It builds the prompts, calls the model, runs the generated Python programs, and validates their results.
+
+It keeps a safety margin within the 40-second limit and reserves time for execution. It returns one numeric answer per task in the original order, with `0.0` for failed or unfinished tasks.
+
 ## Block 1 - Router
 
 This is a small deterministic process implemented in `agent.py`.
@@ -60,3 +66,9 @@ The function returns the `ExecResult` from `dsh.run_python()`. It includes the v
 - We use `dsh.to_number()` to convert `RESULT` to a finite number. Values such as lists, booleans, and `NaN` raise an error.
 
 The function returns the validated number. When validation raises an error, `solve()` keeps the fallback answer of `0.0` for that task.
+
+## Block 7 — Local evaluation
+
+`evaluate_dev.py` shuffles `dev.json` with a fixed seed and splits it into 80% tuning and 20% holdout, keeping a similar mix of `calc`, `table`, and `fit` tasks.
+
+The evaluator checks answers against their tolerances and reports accuracy by task type, failed task IDs, model load time, and batch times. With `--model-log`, it saves the prompts and raw model replies in one timestamped JSON file.

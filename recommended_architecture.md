@@ -1,6 +1,6 @@
 # Recommended architecture
 
-Use a compact hybrid architecture in which the LLM interprets each objective and deterministic tools perform the computation.
+Use a hybrid architecture in which deterministic components route each task, inspect any attached files, and build a compact prompt. A single configured LLM generates Python code from that prompt. The agent runs the code to compute the answer, then validates the result.
 
 Load `Qwen2.5-Coder-1.5B-Instruct` once. 
 -A rule-based router uses file presence and regression phrases to select `calc`, `table`, or `fit`. 
